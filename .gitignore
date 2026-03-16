@@ -1,0 +1,11 @@
+.env
+secrets.json
+out/
+*.conf
+tmp/
+*.tmp
+v2rayN/
+*.exe
+*.dll
+*.db
+*.log
