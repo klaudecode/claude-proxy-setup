@@ -5,6 +5,7 @@ out/
 tmp/
 *.tmp
 v2rayN/
+xray/
 *.exe
 *.dll
 *.db

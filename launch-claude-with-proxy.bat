@@ -1,14 +1,11 @@
 @echo off
 REM Launch Claude desktop app with proxy routing through VPN.
-REM Requires: WireGuard (claude-wg-client) active + v2rayN running.
+REM Requires: WireGuard (claude-wg-client) active.
 REM Only Claude traffic goes through the proxy. Browser and other apps are unaffected.
 
-set "CLAUDE_EXE="
+for /f "delims=" %%i in ('powershell -NoProfile -Command "((Get-AppxPackage | Where-Object { $_.PackageFamilyName -like '*Claude*' }).InstallLocation + '\app\claude.exe')"') do set "CLAUDE_EXE=%%i"
 
-REM Try common install locations
-for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-ChildItem 'C:\Program Files\WindowsApps\Claude_*\app\claude.exe' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName"') do set "CLAUDE_EXE=%%i"
-
-if not defined CLAUDE_EXE (
+if not exist "%CLAUDE_EXE%" (
     echo ERROR: Could not find claude.exe. Is Claude desktop installed?
     echo Download from: https://claude.ai/download
     pause

@@ -1,203 +1,149 @@
-# Step-by-step guide: Claude proxy (Vultr + WireGuard + Xray + Bright Data)
+# Step-by-Step Setup: Claude Proxy
 
-Follow these steps in order. You only need to provide credentials; the scripts do the rest.
-
----
-
-## Before you start
-
-- You have a **Vultr server** (Ubuntu or Debian) and can SSH into it (as root or a user with sudo).
-- You have **Bright Data** account and proxy credentials (host, port, username, password).
-- On your Windows PC: **OpenSSH** is available (Windows 10/11: Settings → Apps → Optional features → OpenSSH Client). Or use **WSL** or **Git Bash** for the Bash script.
+Follow these steps on a **new machine**. You only provide credentials; the scripts do the rest.
 
 ---
 
-## Step 1: Get the setup folder
+## Prerequisites
 
-- Clone this repo (or copy the folder) to your machine.
-- Open a terminal and go to the repo root, e.g.:
-  ```powershell
-  cd "C:\Users\You\claude-proxy-setup"
-  ```
-  (Use your actual path to the cloned repo.)
+- A **Vultr server** (Ubuntu/Debian) that's already been set up with WireGuard + Xray (the server-side setup only needs to run once — if your server is already configured, skip to step 3)
+- A **BrightData** account with ISP proxy credentials
+- **Windows 10/11** with OpenSSH (built-in)
 
 ---
 
-## Step 2: Create your credentials file
+## Step 1: Install tools
 
-**Option A — Using `.env` (recommended)**
+1. Install **WireGuard for Windows**: https://www.wireguard.com/install/
+2. That's it — everything else is included in this repo.
 
-1. Copy the example file:
+---
+
+## Step 2: Set your credentials
+
+1. Open this folder in a terminal:
+   ```powershell
+   cd "C:\path\to\claude-proxy-setup"
+   ```
+
+2. Copy the example file:
    ```powershell
    Copy-Item .env.example .env
    ```
-2. Open `.env` in a text editor and replace the placeholders:
+
+3. Open `.env` in a text editor and fill in:
 
    | Variable | What to put |
    |----------|-------------|
-   | `SSH_HOST` | Your Vultr server IP (e.g. `123.45.67.89`) |
-   | `SSH_USER` | SSH user, usually `root` |
-   | `SSH_KEY_PATH` | Full path to your SSH private key (e.g. `C:\Users\You\.ssh\id_ed25519`). Leave empty if you use password. |
-   | `SSH_PASSWORD` | Only if you don't use a key (less secure) |
-   | `BRIGHT_DATA_HOST` | From Bright Data (e.g. `brd.superproxy.io`) |
-   | `BRIGHT_DATA_PORT` | From Bright Data (e.g. `22225`) |
-   | `BRIGHT_DATA_USER` | Your Bright Data zone username |
-   | `BRIGHT_DATA_PASS` | Your Bright Data zone password |
+   | `SSH_HOST` | Your Vultr server IP (e.g. `108.61.69.62`) |
+   | `SSH_USER` | Usually `root` |
+   | `SSH_KEY_PATH` | Path to your SSH private key (e.g. `C:\Users\You\.ssh\id_ed25519`) |
+   | `BRIGHT_DATA_HOST` | From BrightData (e.g. `brd.superproxy.io`) |
+   | `BRIGHT_DATA_PORT` | From BrightData (e.g. `33335`) |
+   | `BRIGHT_DATA_USER` | Your BrightData zone username |
+   | `BRIGHT_DATA_PASS` | Your BrightData zone password |
 
-3. Optional: change `WIREGUARD_PORT` (default `51820`) or `XRAY_PORT` (default `1080`) if you need to.
-4. Save and close `.env`.
-
-**Option B — Using `secrets.json`**
-
-1. Copy the example:
-   ```powershell
-   Copy-Item secrets.json.example secrets.json
-   ```
-2. Open `secrets.json` and fill in the same values as in the table above (use the same names as in the example file).
-3. Save and close.
+4. Save and close.
 
 ---
 
-## Step 3: Run the setup script
-
-This will connect to your Vultr server, install WireGuard and Xray, configure Bright Data, and download client configs to the `out` folder.
-
-**On Windows (PowerShell):**
+## Step 3: Run setup
 
 ```powershell
-cd "C:\Users\You\claude-proxy-setup"
-.\scripts\Setup-Server.ps1
+.\scripts\Full-Setup.ps1
 ```
 
-**On WSL or Git Bash:**
+This will:
+- Download Xray core for Windows (into `xray/`)
+- SSH into your Vultr server and install WireGuard + Xray (if not already done)
+- Download client configs to `out/`
+- Generate a **unique WireGuard key pair** for this machine
+- Add this machine as a new peer on the server
+- Import the WireGuard tunnel
+- Configure Cursor's proxy setting
 
-```bash
-cd /path/to/claude-proxy-setup
-chmod +x scripts/setup-server.sh
-./scripts/setup-server.sh
-```
+If the server is already set up (from another machine), the script detects that and only generates a new peer for this machine.
 
-- If you see SSH host key prompts, type `yes` to accept.
-- Wait until it finishes. You should see: "Done. Client configs saved to: …\out".
-
-If it fails, check: correct IP, correct SSH user, key path (or password), and that the server is reachable (ping or try `ssh user@your-ip` in another terminal).
-
----
-
-## Step 4: Install WireGuard on your PC
-
-1. Download **WireGuard for Windows**: https://www.wireguard.com/install/
-2. Install and open WireGuard.
-3. Click **"Add tunnel"** → **"Import tunnel(s) from file"**.
-4. Choose: `out\claude-wg-client.conf` (in this repo's `out` folder).
-5. Click **"Activate"** to connect. The tunnel should show "Active".
-6. Leave WireGuard running whenever you want Claude to use the proxy.
-
----
-
-## Step 5: Install and run an Xray client on your PC
-
-You need a local SOCKS5 proxy that connects to your Vultr server over the WireGuard tunnel.
-
-**Option A — v2rayN (Windows)**
-
-1. Download **v2rayN**: https://github.com/2dust/v2rayN/releases (e.g. `v2rayN-With-Core.zip`).
-2. Unzip and run `v2rayN.exe`.
-3. **Servers** → **Import bulk from config** (or **Import from config file**).
-4. Select: `out\xray-client.json`.
-5. In settings, ensure the local SOCKS port is **1080** (or note the port it uses).
-6. Start the proxy (e.g. enable "Http proxy" / "Start core" so the SOCKS5 server is listening).
-7. In v2rayN, set **System proxy** to **Off** (we only want Claude to use the proxy, not the whole system).
-
-**Option B — Nekoray (Windows)**
-
-1. Download **Nekoray**: https://github.com/MatsuriDayo/nekoray/releases.
-2. Install and open. Import the config: **File** → **Import** → select `out\xray-client.json`.
-3. Start the profile. Default SOCKS5 is usually `127.0.0.1:1080`.
-4. Do **not** enable "System proxy" if you only want Claude to use it.
-
----
-
-## Step 6: Set Claude to use the proxy
-
-1. Make sure **WireGuard** is connected and the **Xray client** (v2rayN or Nekoray) is running.
-2. Open **Claude** (desktop app).
-3. Go to **Settings** (gear icon) → **Proxy** (or **Network**).
-4. Enable proxy and set:
-   - **Proxy URL:** `socks5://127.0.0.1:1080`  
-   (If your Xray client uses a different port, use that instead, e.g. `socks5://127.0.0.1:2080`.)
-5. Save. Claude's traffic will go: **Claude → Xray client (localhost) → WireGuard → Vultr (Xray) → Bright Data → internet.**
-
-Your browser and other apps do **not** use this proxy unless you set a system-wide proxy.
-
----
-
-## Step 7: Verify
-
-1. In Claude, send a message that requires the internet (e.g. "What's the weather in Tokyo?").
-2. If you get a normal reply, the proxy path is working.
-3. To confirm the exit IP is from Bright Data, you can ask Claude: "What is my IP?" or use a site like https://api.ipify.org in a browser (browser will show your normal IP; only Claude uses the proxy).
-
----
-
-## Quick reference: daily use
-
-1. Start **WireGuard** and connect the "claude-wg" tunnel.
-2. Start **v2rayN** (or Nekoray) and ensure the proxy is running.
-3. Open **Claude**; proxy is already set to `socks5://127.0.0.1:1080`.
-4. When done, you can disconnect WireGuard and close the Xray client; the rest of your PC keeps using your normal connection.
-
----
-
-## Re-exporting configs (optional)
-
-If you run setup again on the server or change something and want fresh client configs:
-
-**PowerShell:**
+**If you don't have an SSH key yet:**
 ```powershell
-.\scripts\Export-ClientConfigs.ps1
+ssh-keygen -t ed25519
 ```
-
-**Bash:**
-```bash
-./scripts/export-client-configs.sh
-```
-
-New files will be in `out\`. Re-import the WireGuard config and Xray config in your clients if needed.
+Then add it to your Vultr server, or use `SSH_PASSWORD` in `.env` for the first run.
 
 ---
 
-## Rotating keys (optional)
+## Step 4: Configure Claude Desktop
 
-To regenerate WireGuard and client configs (e.g. for security):
+Claude Desktop needs to be launched with a flag each time:
 
-**Bash only** (from repo root):
-```bash
-./scripts/rotate-keys.sh
+- **Double-click** `launch-claude-with-proxy.bat`
+
+Or manually:
+```
+"C:\path\to\claude.exe" --proxy-server=socks5://127.0.0.1:1080
 ```
 
-Then re-import `out\claude-wg-client.conf` in WireGuard and `out\xray-client.json` in your Xray client.
+**Important:** Use `socks5://`, not `http://`. Cloudflare blocks HTTP proxies on claude.ai.
 
 ---
 
-## Removing the proxy from the server (optional)
+## Step 5: Configure Cursor (automatic)
 
-To uninstall only WireGuard and Xray from the Vultr server (server stays):
-
-**Bash:**
-```bash
-./scripts/teardown.sh
+The setup script adds this to Cursor's `settings.json`:
+```json
+{
+  "http.proxy": "socks5://127.0.0.1:1080",
+  "http.proxyStrictSSL": false
+}
 ```
+
+If you need to set it manually: **Cursor Settings → search "proxy"** → set to `socks5://127.0.0.1:1080`.
+
+---
+
+## Step 6: Configure Claude Code (optional)
+
+If you use Claude Code (CLI), add to `~\.claude\settings.json`:
+```json
+{
+  "env": {
+    "HTTPS_PROXY": "socks5://127.0.0.1:1080",
+    "HTTP_PROXY": "socks5://127.0.0.1:1080",
+    "NO_PROXY": "localhost,127.0.0.1"
+  }
+}
+```
+
+---
+
+## Daily Startup
+
+1. **Double-click** `Start-Proxy.bat` (starts WireGuard + Xray)
+2. **Double-click** `launch-claude-with-proxy.bat` (opens Claude)
+3. Open **Cursor** normally
+
+To stop: **double-click** `Stop-Proxy.bat`
+
+---
+
+## Deploying to another machine
+
+1. Clone this repo on the new machine
+2. Install WireGuard
+3. Fill in `.env` with the same server credentials
+4. Run `.\scripts\Full-Setup.ps1`
+5. The script generates a unique WireGuard key pair for the new machine and adds it as a new peer on the server (e.g. 10.66.66.4)
+
+Each machine gets its own IP on the WireGuard subnet. They can all run simultaneously.
 
 ---
 
 ## Troubleshooting
 
-| Problem | What to check |
-|--------|----------------|
-| Setup script can't connect | Correct `SSH_HOST`, `SSH_USER`, and key/password; server is on and reachable; firewall allows SSH (port 22). |
-| WireGuard won't connect | Vultr firewall: allow UDP on `WIREGUARD_PORT` (default 51820). |
-| Claude says proxy error | WireGuard is connected; Xray client is running; proxy in Claude is `socks5://127.0.0.1:1080` (or your Xray port). |
-| No internet in Claude | Bright Data credentials in `.env`; Xray on server can reach Bright Data (check server logs). |
-
-For more detail, see [README.md](README.md).
+| Problem | Fix |
+|---------|-----|
+| WireGuard handshake never completes | Each machine needs its own key pair. Check `wg show` on the server — if the peer endpoint shows a different IP, another machine is using the same key. |
+| Claude shows "Couldn't connect" | Make sure you launched with `socks5://` (not `http://`). Cloudflare blocks HTTP proxies. |
+| Xray crashes immediately | Run `xray\xray.exe run -config out\xray-client.json` in a terminal to see the error. |
+| "Permission denied" on WireGuard | WireGuard tunnel install needs admin. Right-click `Start-Proxy.bat` → Run as administrator. |
+| Cursor not using proxy | Restart Cursor after changing settings.json. |
